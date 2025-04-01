@@ -1,1 +1,97 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IBAN-Prüfer mit BIC & Banknamen</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background-color: #f9f9f9;
+      padding: 2em;
+    }
+    input, button {
+      padding: 0.5em;
+      font-size: 1em;
+      width: 100%;
+      margin: 0.5em 0;
+    }
+    .result {
+      margin-top: 1em;
+      font-weight: bold;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <h2>IBAN-Prüfer</h2>
+  <label for="ibanInput">IBAN eingeben:</label>
+  <input type="text" id="ibanInput" placeholder="z. B. DE89 3704 0044 0532 0130 00" maxlength="34">
+  <button onclick="checkIBAN()">IBAN prüfen</button>
+  <div class="result" id="result"></div>
+  <div class="result" id="bankInfo"></div>
 
+  <script>
+    const bankDB = {
+      // Beispiel-Datenbank für deutsche BLZ
+      "37040044": { name: "Commerzbank", bic: "COBADEFFXXX" },
+      "10000000": { name: "Bundesbank", bic: "MARKDEF1100" },
+      "50010517": { name: "ING-DiBa", bic: "INGDDEFFXXX" },
+      "20050550": { name: "Haspa", bic: "HASPDEHHXXX" }
+    };
+
+    const ibanInput = document.getElementById('ibanInput');
+    ibanInput.addEventListener('input', formatIBAN);
+
+    function formatIBAN() {
+      let value = ibanInput.value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      ibanInput.value = value.replace(/(.{4})/g, '$1 ').trim();
+    }
+
+    function checkIBAN() {
+      let iban = ibanInput.value.replace(/\s+/g, '').toUpperCase();
+      const resultDiv = document.getElementById('result');
+      const bankInfoDiv = document.getElementById('bankInfo');
+      bankInfoDiv.innerHTML = '';
+
+      if (!/^([A-Z]{2})(\d{2})([A-Z0-9]{10,30})$/.test(iban)) {
+        resultDiv.innerText = '❌ Ungültiges IBAN-Format.';
+        return;
+      }
+
+      // IBAN prüfen (MOD97)
+      let rearranged = iban.slice(4) + iban.slice(0, 4);
+      let numericIBAN = '';
+      for (let i = 0; i < rearranged.length; i++) {
+        let char = rearranged[i];
+        numericIBAN += isNaN(char) ? (char.charCodeAt(0) - 55).toString() : char;
+      }
+      let remainder = 0;
+      for (let i = 0; i < numericIBAN.length; i++) {
+        remainder = (remainder * 10 + parseInt(numericIBAN[i])) % 97;
+      }
+
+      if (remainder !== 1) {
+        resultDiv.innerText = '❌ Ungültige IBAN (MOD97-Fehler)';
+        return;
+      }
+
+      resultDiv.innerText = '✅ Gültige IBAN';
+
+      // Versuche Bank-Info anhand der BLZ zu ermitteln (für DE)
+      if (iban.startsWith('DE')) {
+        const blz = iban.slice(4, 12);
+        const bank = bankDB[blz];
+        if (bank) {
+          bankInfoDiv.innerHTML = `
+            Bank: <strong>${bank.name}</strong><br>
+            BIC: <strong>${bank.bic}</strong>
+          `;
+        } else {
+          bankInfoDiv.innerHTML = 'ℹ️ Keine Bankdaten zur BLZ gefunden.';
+        }
+      }
+    }
+  </script>
+</body>
+</html>
